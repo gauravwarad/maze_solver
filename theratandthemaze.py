@@ -3,6 +3,42 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import matplotlib.image as mpimg
 import heapq
+import time
+import csv
+from pathlib import Path
+
+class Timer:
+    def __init__(self):
+        self.start_time = None
+        self.end_time = None
+        self.elapsed_time = None
+
+    def start(self):
+        """Starts the timer."""
+        self.start_time = time.time()
+        self.end_time = None
+        self.elapsed_time = None
+
+    def stop(self):
+        """Stops the timer and calculates elapsed time."""
+        if self.start_time is None:
+            raise ValueError("Timer has not been started yet.")
+        self.end_time = time.time()
+        self.elapsed_time = self.end_time - self.start_time
+
+    def get_elapsed_time(self):
+        """Returns the elapsed time in seconds."""
+        if self.elapsed_time is None:
+            raise ValueError("Timer has not been stopped yet.")
+        return self.elapsed_time
+
+    def reset(self):
+        """Resets the timer."""
+        self.start_time = None
+        self.end_time = None
+        self.elapsed_time = None
+        
+#####################################################
 
 class MazeGenerator:
     def __init__(self, width, height):
@@ -35,7 +71,14 @@ class MazeGenerator:
         self.maze[0][0] |= 8
         self.maze[self.height - 1][self.width - 1] |= 4
 
+    def reset_for_new_search(self):     ##ADDED
+        self.visited = [[False for _ in range(self.width)] for _ in range(self.height)]  # Reset visited state
+        self.visited_cells = []  # Clear visited cells for visualization
+        self.path = []  # Clear the path
+
     def a_star(self, start, end):
+        timer = Timer()
+        timer.start()
         def heuristic(a, b):
             return ((a[0] - b[0])**2 + (a[1] - b[1])**2)**0.5
 
@@ -61,6 +104,8 @@ class MazeGenerator:
             # Check if goal is reached
             if current == end:
                 self.reconstruct_path(came_from, current)
+                timer.stop()
+                print(f"A* Time: {timer.get_elapsed_time():.9f} seconds")
                 return True
 
             # Add current node to the explored set
@@ -98,6 +143,86 @@ class MazeGenerator:
                                 heapq.heappush(frontier, (f_score[neighbor], neighbor))
 
         # If the loop exits without finding a solution, return FAILURE
+        timer.stop() # stops timer if stuck, no path found
+        print(f"A* Time: {timer.get_elapsed_time():.9f} seconds") 
+        return False
+    
+    def depth_first_search(self, start, end):
+        timer = Timer()
+        timer.start()
+        
+        stack = [start]  # stack
+        came_from = {}  # reconstruct the path
+        self.visited_cells = []  # Reset visited cells for visualization
+        self.path = []  # Reset the path for visualization
+
+        visited = set()  # track visited nodes, prevent infinite looping 
+        visited.add(start)  # Mark the start as visited
+        while stack: 
+            current = stack.pop()
+            self.visited_cells.append(current)
+
+            if current == end:
+                self.reconstruct_path(came_from, current)
+                timer.stop()
+                print(f"DFS Time: {timer.get_elapsed_time():.9f} seconds")
+                return True
+            
+            x, y = current 
+            directions = [(0, -1), (0, 1), (-1, 0), (1, 0)]
+
+            for dx, dy in directions: 
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < self.width and 0 <= ny < self.height:
+                    neighbor = (nx, ny)
+                    if neighbor not in visited and not self.is_wall_between(current, neighbor):
+                        stack.append(neighbor)
+                        visited.add(neighbor)
+                        came_from[neighbor] = current
+        timer.stop()
+        print(f"DFS Time: {timer.get_elapsed_time():.9f} seconds")
+        return False
+
+    def uniform_cost_search(self, start, end):
+        timer = Timer()
+        timer.start()
+
+        frontier =[]
+        heapq.heappush(frontier, (0, start))
+
+        visited = set()
+
+        came_from = {}
+        g_score = {start: 0}
+
+        while frontier:
+            current_cost, current = heapq.heappop(frontier)
+            self.visited_cells.append(current)
+
+            if current == end:
+                self.reconstruct_path(came_from, current)
+                timer.stop()
+                print(f"UCS Time: {timer.get_elapsed_time():.9f} seconds")    
+                return True
+            visited.add(current)
+
+            x, y = current
+            directions = [(0, -1), (0, 1), (-1, 0), (1, 0)]
+            for dx, dy in directions:
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < self.width and 0 <= ny < self.height:
+                    if not self.is_wall_between((x, y), (nx, ny)):
+                        neighbor = (nx, ny)
+                        new_cost = current_cost + 1
+
+                        # If the neighbor is not visited or has a lower cost
+                        if neighbor not in visited or new_cost < g_score.get(neighbor, float('inf')):
+                            came_from[neighbor] = current
+                            g_score[neighbor] = new_cost
+                            heapq.heappush(frontier, (new_cost, neighbor))
+
+        timer.stop()
+        print(f"UCS Time: {timer.get_elapsed_time():.9f} seconds")
         return False
 
     def reconstruct_path(self, came_from, current):
@@ -138,6 +263,7 @@ class MazeGenerator:
         agent = ax.imshow(agent_image, extent=(0.4, 0.6, 0.4, 0.6), zorder=5)
 
         total_frames = len(self.visited_cells) + len(self.path)
+        # pass    #added
 
         
 
@@ -161,15 +287,84 @@ class MazeGenerator:
         ani = FuncAnimation(fig, update, frames=total_frames, interval=100, blit=True, repeat=False)
         plt.show()
 
+def save_statistics():
+    for _ in range(1000):
+        width, height = 30, 30
+        maze_gen = MazeGenerator(width, height)
+        maze_gen.generate_maze()
+        maze_gen.add_entrance_and_exit()
+
+        dfstime = Timer()
+        dfstime.start()
+        if maze_gen.depth_first_search((0, 0), (width - 1, height - 1)):
+            # maze_gen.visualize_pathfinding()
+            dfstime.stop()
+        else:
+            print("No DFS path found!")
+
+        maze_gen.reset_for_new_search()
+
+        astartime = Timer()
+        astartime.start()
+        if maze_gen.a_star((0, 0), (width - 1, height - 1)):
+            # maze_gen.visualize_pathfinding()
+            astartime.stop()
+        else:
+            print("No A-star path found!")
 
 
+        maze_gen.reset_for_new_search()
+
+        usctime = Timer()
+        usctime.start()
+        if maze_gen.uniform_cost_search((0, 0), (width - 1, height - 1)):
+            # maze_gen.visualize_pathfinding()
+            usctime.stop()
+        else:
+            print("No UCS path found!")
+        
+        save_to_file(dfstime.get_elapsed_time(), astartime.get_elapsed_time(), usctime.get_elapsed_time() )
+
+
+def save_to_file(dfs_time, astar_time, usc_time, filename="execution_times_30.csv"):
+    # Check if the file exists
+    file_exists = Path(filename).is_file()
+    # Open the file in append mode and write data
+    with open(filename, mode='a', newline='') as file:
+        writer = csv.writer(file)
+        # Write the header if the file does not exist
+        if not file_exists:
+            writer.writerow(["DFS Time (s)", "A* Time (s)", "UCS Time (s)"])
+        # Write the times to a new row
+        writer.writerow([dfs_time, astar_time, usc_time])
+    print("file written")
+
+# save_statistics()
 # Usage
+# uncomment below to run.
 width, height = 20, 20
 maze_gen = MazeGenerator(width, height)
 maze_gen.generate_maze()
 maze_gen.add_entrance_and_exit()
 
+if maze_gen.depth_first_search((0, 0), (width - 1, height - 1)):
+    maze_gen.visualize_pathfinding()
+else:
+    print("No DFS path found!")
+
+maze_gen.reset_for_new_search()
+
 if maze_gen.a_star((0, 0), (width - 1, height - 1)):
     maze_gen.visualize_pathfinding()
 else:
-    print("No path found!")
+    print("No A-star path found!")
+
+
+maze_gen.reset_for_new_search()
+
+if maze_gen.uniform_cost_search((0, 0), (width - 1, height - 1)):
+    maze_gen.visualize_pathfinding()
+else:
+    print("No UCS path found!")
+
+
