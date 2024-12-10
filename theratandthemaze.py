@@ -80,7 +80,8 @@ class MazeGenerator:
         timer = Timer()
         timer.start()
         def heuristic(a, b):
-            return ((a[0] - b[0])**2 + (a[1] - b[1])**2)**0.5
+            # return ((a[0] - b[0])**2 + (a[1] - b[1])**2)**0.5
+            return  abs(a[0] - b[0]) + abs(a[1] - b[1])
 
         # Initialize the frontier with the initial state
         frontier = []
@@ -225,6 +226,45 @@ class MazeGenerator:
         print(f"UCS Time: {timer.get_elapsed_time():.9f} seconds")
         return False
 
+
+    def depth_limited_search(self, current, end, depth, came_from):
+
+        self.visited_cells.append(current)
+        if current == end:
+            self.reconstruct_path(came_from, current)
+            return True
+        if depth ==0:
+            return False
+        
+        x, y = current
+        directions = [(0, -1), (0, 1), (-1, 0), (1, 0)]
+        for dx, dy in directions:
+            nx, ny = x + dx, y + dy
+            neighbor = (nx, ny)
+            if 0 <= nx < self.width and 0 <= ny < self.height and not self.is_wall_between(current, neighbor):
+                if neighbor not in came_from:  # Prevent revisiting
+                    came_from[neighbor] = current
+                    if self.depth_limited_search(neighbor, end, depth - 1, came_from):
+                        return True
+        return False 
+
+    def iterative_deepening_search(self, start, end):
+        timer = Timer()  # Timer for performance measurement
+        timer.start()
+
+        self.visited_cells = []  # Reset visited cells for visualization
+        self.path = []  # Reset path for visualization
+
+        depth = 0  # Start with depth 0
+        while True:
+            came_from = {start: None}  # Reset came_from for each depth iteration
+            if self.depth_limited_search(start, end, depth, came_from):
+                timer.stop()
+                print(f"IDS Time: {timer.get_elapsed_time():.9f} seconds")
+                return True
+            depth += 1
+
+
     def reconstruct_path(self, came_from, current):
         while current in came_from:
             self.path.append(current)
@@ -287,7 +327,11 @@ class MazeGenerator:
         ani = FuncAnimation(fig, update, frames=total_frames, interval=100, blit=True, repeat=False)
         plt.show()
 
-def save_statistics():
+def show_statistics():
+    dfstotal = 0
+    astartotal = 0
+    usctotal = 0
+    idstotal = 0
     for _ in range(1000):
         width, height = 30, 30
         maze_gen = MazeGenerator(width, height)
@@ -322,11 +366,77 @@ def save_statistics():
             usctime.stop()
         else:
             print("No UCS path found!")
-        
-        save_to_file(dfstime.get_elapsed_time(), astartime.get_elapsed_time(), usctime.get_elapsed_time() )
+
+        idstime = Timer()
+        idstime.start()
+
+        if maze_gen.iterative_deepening_search((0, 0), (width - 1, height - 1)):
+            # maze_gen.visualize_pathfinding()
+            idstime.stop()
+        else:
+            print("No IDS path found!")
+
+        dfstotal += dfstime.get_elapsed_time()
+        astartotal += astartime.get_elapsed_time()
+        usctotal += usctime.get_elapsed_time()
+        idstotal += idstime.get_elapsed_time()
+        # save_to_file(dfstime.get_elapsed_time(), astartime.get_elapsed_time(), usctime.get_elapsed_time() )
+
+    print("total time is \n")
+    print("DFS -: ", dfstotal)
+    print("A star -: ", astartotal)
+    print("UCS -: ", usctotal)
+    print("IDS :- ", idstotal)
+
+def save_statistics():
+    for _ in range(1000):
+        width, height = 40, 40
+        maze_gen = MazeGenerator(width, height)
+        maze_gen.generate_maze()
+        maze_gen.add_entrance_and_exit()
+
+        dfstime = Timer()
+        dfstime.start()
+        if maze_gen.depth_first_search((0, 0), (width - 1, height - 1)):
+            # maze_gen.visualize_pathfinding()
+            dfstime.stop()
+        else:
+            print("No DFS path found!")
+
+        maze_gen.reset_for_new_search()
+
+        astartime = Timer()
+        astartime.start()
+        if maze_gen.a_star((0, 0), (width - 1, height - 1)):
+            # maze_gen.visualize_pathfinding()
+            astartime.stop()
+        else:
+            print("No A-star path found!")
 
 
-def save_to_file(dfs_time, astar_time, usc_time, filename="execution_times_30.csv"):
+        maze_gen.reset_for_new_search()
+
+        usctime = Timer()
+        usctime.start()
+        if maze_gen.uniform_cost_search((0, 0), (width - 1, height - 1)):
+            # maze_gen.visualize_pathfinding()
+            usctime.stop()
+        else:
+            print("No UCS path found!")
+
+        idstime = Timer()
+        idstime.start()
+
+        if maze_gen.iterative_deepening_search((0, 0), (width - 1, height - 1)):
+            # maze_gen.visualize_pathfinding()
+            idstime.stop()
+        else:
+            print("No IDS path found!")
+
+        save_to_file(dfstime.get_elapsed_time(), astartime.get_elapsed_time(), usctime.get_elapsed_time(), idstime.get_elapsed_time() )
+
+
+def save_to_file(dfs_time, astar_time, usc_time, ids_time, filename="execution_times_30.csv"):
     # Check if the file exists
     file_exists = Path(filename).is_file()
     # Open the file in append mode and write data
@@ -334,37 +444,58 @@ def save_to_file(dfs_time, astar_time, usc_time, filename="execution_times_30.cs
         writer = csv.writer(file)
         # Write the header if the file does not exist
         if not file_exists:
-            writer.writerow(["DFS Time (s)", "A* Time (s)", "UCS Time (s)"])
+            writer.writerow(["DFS Time (s)", "A* Time (s)", "UCS Time (s)", "IDS Time (s)"])
         # Write the times to a new row
-        writer.writerow([dfs_time, astar_time, usc_time])
+        writer.writerow([dfs_time, astar_time, usc_time, ids_time])
     print("file written")
 
-# save_statistics()
-# Usage
-# uncomment below to run.
-width, height = 20, 20
-maze_gen = MazeGenerator(width, height)
-maze_gen.generate_maze()
-maze_gen.add_entrance_and_exit()
 
-if maze_gen.depth_first_search((0, 0), (width - 1, height - 1)):
-    maze_gen.visualize_pathfinding()
+
+print("Welcome!\nWhat do you want to do?\n\tPress 1 for visualizations of all algorithms\n\tPress 2 for showing average statistics\n\tPress 3 to save stats to a file")
+choice = input()
+if int(choice) == 1:
+    size = int(input("What maze size do you want?"))
+    
+    width, height = size, size
+    maze_gen = MazeGenerator(width, height)
+    maze_gen.generate_maze()
+    maze_gen.add_entrance_and_exit()
+
+    if maze_gen.depth_first_search((0, 0), (width - 1, height - 1)):
+        maze_gen.visualize_pathfinding()
+
+    else:
+        print("No DFS path found!")
+
+    maze_gen.reset_for_new_search()
+
+    if maze_gen.a_star((0, 0), (width - 1, height - 1)):
+        maze_gen.visualize_pathfinding()
+
+    else:
+        print("No A-star path found!")
+
+
+    maze_gen.reset_for_new_search()
+
+    if maze_gen.uniform_cost_search((0, 0), (width - 1, height - 1)):
+        maze_gen.visualize_pathfinding()
+
+    else:
+        print("No UCS path found!")
+
+    maze_gen.reset_for_new_search()
+
+    if maze_gen.iterative_deepening_search((0, 0), (width - 1, height - 1)):
+        maze_gen.visualize_pathfinding()
+    else:
+        print("No IDS path found!")
+
+elif int(choice) == 2:
+    show_statistics()
+
+elif int(choice) == 3:
+    save_statistics()
+
 else:
-    print("No DFS path found!")
-
-maze_gen.reset_for_new_search()
-
-if maze_gen.a_star((0, 0), (width - 1, height - 1)):
-    maze_gen.visualize_pathfinding()
-else:
-    print("No A-star path found!")
-
-
-maze_gen.reset_for_new_search()
-
-if maze_gen.uniform_cost_search((0, 0), (width - 1, height - 1)):
-    maze_gen.visualize_pathfinding()
-else:
-    print("No UCS path found!")
-
-
+    print("\nChoice not recognized")
