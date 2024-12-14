@@ -106,8 +106,10 @@ class MazeGenerator:
             if current == end:
                 self.reconstruct_path(came_from, current)
                 timer.stop()
+                print("DFS - number of visited cells are: ", len(self.visited_cells))
                 print(f"A* Time: {timer.get_elapsed_time():.9f} seconds")
-                return True
+                # return True
+                return len(self.visited_cells)
 
             # Add current node to the explored set
             explored.add(current)
@@ -145,6 +147,7 @@ class MazeGenerator:
 
         # If the loop exits without finding a solution, return FAILURE
         timer.stop() # stops timer if stuck, no path found
+        print("A* - number of visited cells are: ", len(self.visited_cells))
         print(f"A* Time: {timer.get_elapsed_time():.9f} seconds") 
         return False
     
@@ -166,11 +169,14 @@ class MazeGenerator:
             if current == end:
                 self.reconstruct_path(came_from, current)
                 timer.stop()
+                print("DFS - number of visited cells are: ", len(self.visited_cells))
                 print(f"DFS Time: {timer.get_elapsed_time():.9f} seconds")
-                return True
+                # return True
+                return len(self.visited_cells)
             
             x, y = current 
-            directions = [(0, -1), (0, 1), (-1, 0), (1, 0)]
+            # directions = [(0, -1), (0, 1), (-1, 0), (1, 0)]
+            directions = [(-1, 0), (0, 1), (1, 0), (0, -1)]
 
             for dx, dy in directions: 
                 nx, ny = x + dx, y + dy
@@ -181,6 +187,7 @@ class MazeGenerator:
                         visited.add(neighbor)
                         came_from[neighbor] = current
         timer.stop()
+        print("DFS - number of visited cells are: ", len(self.visited_cells))
         print(f"DFS Time: {timer.get_elapsed_time():.9f} seconds")
         return False
 
@@ -203,8 +210,10 @@ class MazeGenerator:
             if current == end:
                 self.reconstruct_path(came_from, current)
                 timer.stop()
+                print("UCS - number of visited cells are: ", len(self.visited_cells))
                 print(f"UCS Time: {timer.get_elapsed_time():.9f} seconds")    
-                return True
+                # return True
+                return len(self.visited_cells)
             visited.add(current)
 
             x, y = current
@@ -223,6 +232,7 @@ class MazeGenerator:
                             heapq.heappush(frontier, (new_cost, neighbor))
 
         timer.stop()
+        print("UCS - number of visited cells are: ", len(self.visited_cells))
         print(f"UCS Time: {timer.get_elapsed_time():.9f} seconds")
         return False
 
@@ -260,8 +270,10 @@ class MazeGenerator:
             came_from = {start: None}  # Reset came_from for each depth iteration
             if self.depth_limited_search(start, end, depth, came_from):
                 timer.stop()
+                print("IDS - number of visited cells are: ", len(self.visited_cells))
                 print(f"IDS Time: {timer.get_elapsed_time():.9f} seconds")
-                return True
+                # return True
+                return len(self.visited_cells)
             depth += 1
 
 
@@ -328,21 +340,30 @@ class MazeGenerator:
         plt.show()
 
 def show_statistics():
+    dfscellstotal = 0
+    astarcellstotal = 0
+    ucscellstotal = 0
+    idscellstotal = 0
+
     dfstotal = 0
     astartotal = 0
     usctotal = 0
     idstotal = 0
+
+    maze_size = int(input("Enter your desired maze size: "))
     for _ in range(1000):
-        width, height = 30, 30
+        width, height = maze_size, maze_size
         maze_gen = MazeGenerator(width, height)
         maze_gen.generate_maze()
         maze_gen.add_entrance_and_exit()
 
         dfstime = Timer()
         dfstime.start()
-        if maze_gen.depth_first_search((0, 0), (width - 1, height - 1)):
+        dfscells = maze_gen.depth_first_search((0, 0), (width - 1, height - 1))
+        if dfscells:
             # maze_gen.visualize_pathfinding()
             dfstime.stop()
+            dfscellstotal += dfscells
         else:
             print("No DFS path found!")
 
@@ -350,9 +371,12 @@ def show_statistics():
 
         astartime = Timer()
         astartime.start()
-        if maze_gen.a_star((0, 0), (width - 1, height - 1)):
+        astarcells = maze_gen.a_star((0, 0), (width - 1, height - 1))
+        if astarcells:
+            astarcellstotal += astarcells
             # maze_gen.visualize_pathfinding()
             astartime.stop()
+            
         else:
             print("No A-star path found!")
 
@@ -361,7 +385,9 @@ def show_statistics():
 
         usctime = Timer()
         usctime.start()
-        if maze_gen.uniform_cost_search((0, 0), (width - 1, height - 1)):
+        ucscells = maze_gen.uniform_cost_search((0, 0), (width - 1, height - 1))
+        if ucscells:
+            ucscellstotal += ucscells
             # maze_gen.visualize_pathfinding()
             usctime.stop()
         else:
@@ -369,8 +395,9 @@ def show_statistics():
 
         idstime = Timer()
         idstime.start()
-
-        if maze_gen.iterative_deepening_search((0, 0), (width - 1, height - 1)):
+        idscells = maze_gen.iterative_deepening_search((0, 0), (width - 1, height - 1))
+        if idscells:
+            idscellstotal += idscells
             # maze_gen.visualize_pathfinding()
             idstime.stop()
         else:
@@ -382,15 +409,24 @@ def show_statistics():
         idstotal += idstime.get_elapsed_time()
         # save_to_file(dfstime.get_elapsed_time(), astartime.get_elapsed_time(), usctime.get_elapsed_time() )
 
+
+
     print("total time is \n")
     print("DFS -: ", dfstotal)
     print("A star -: ", astartotal)
     print("UCS -: ", usctotal)
     print("IDS :- ", idstotal)
 
+    print("average nodes checked is \n")
+    print("DFS -: ", dfscellstotal/1000)
+    print("A star -: ", astarcellstotal/1000)
+    print("UCS -: ", ucscellstotal/1000)
+    print("IDS :- ", idscellstotal/1000)
+
 def save_statistics():
+    maze_size = int(input("Enter your desired maze size: "))
     for _ in range(1000):
-        width, height = 40, 40
+        width, height = maze_size, maze_size
         maze_gen = MazeGenerator(width, height)
         maze_gen.generate_maze()
         maze_gen.add_entrance_and_exit()
@@ -433,10 +469,11 @@ def save_statistics():
         else:
             print("No IDS path found!")
 
-        save_to_file(dfstime.get_elapsed_time(), astartime.get_elapsed_time(), usctime.get_elapsed_time(), idstime.get_elapsed_time() )
+        save_to_file(dfstime.get_elapsed_time(), astartime.get_elapsed_time(), usctime.get_elapsed_time(), idstime.get_elapsed_time(),
+                     "execution_times.csv" )
 
 
-def save_to_file(dfs_time, astar_time, usc_time, ids_time, filename="execution_times_30.csv"):
+def save_to_file(dfs_time, astar_time, usc_time, ids_time, filename="execution_times_20.csv"):
     # Check if the file exists
     file_exists = Path(filename).is_file()
     # Open the file in append mode and write data
